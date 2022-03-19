@@ -64,7 +64,7 @@ def main():
         sys.exit("Program finished")
 
 
-""" 
+"""
 Method to returns all the chatters, and give them 0 points to begin with
 0 points means, lurkage only.
 """
@@ -87,7 +87,7 @@ def get_chatters_and_lurkers(user_channel):
     return dict.fromkeys(all_viewers, 0)
 
 
-""" 
+"""
 Method to connect to Twitch with the provided socket
 Also calls the parses message and award points methods.
 """
@@ -120,7 +120,7 @@ def connect_to_twitch(sock):
         exit()
 
 
-""" 
+"""
 Method to parse the message received by the socket
 Also calls the award points method.
 """
@@ -148,9 +148,9 @@ def parse_message(line, dict_of_users):
         raise RuntimeError('Uh oh!')
 
 
-""" 
+"""
 Method to award points to a user.
-Currently, 1 chat = 1 point. We can chat if need be. 
+Currently, 1 chat = 1 point. We can chat if need be.
 There can be abuse here, but we can set the point threshold higher
 or even check if a message is not just a 1 word (besides !lurk)
 Future enhancement maybe?
@@ -162,9 +162,9 @@ def award_points(username, dict_of_users):
     dict_of_users[username] = original_value + 1
 
 
-""" 
+"""
 Method to update the list of chatters
-Run every 10 minutes or so, so that we don't miss 
+Run every 10 minutes or so, so that we don't miss
 any members that come or go from the stream chat.
 Calls out the refresh method
 """
@@ -181,8 +181,8 @@ def update_chatters():
         time.sleep(600)
 
 
-""" 
-Method to actually refresh the dictionary of members. 
+"""
+Method to actually refresh the dictionary of members.
 Returns a new list of combined members.
 """
 
@@ -193,15 +193,12 @@ def refresh_chatters_and_lurkers(chatters_and_lurkers_old, chatters_and_lurkers_
         if chatter in chatters_and_lurkers_old:
             new_dict_combined[chatter] = chatters_and_lurkers_new[chatter] + chatters_and_lurkers_old[chatter]
         else:
-            if chatter in chatters_and_lurkers_old:
-                new_dict_combined.update({chatter: chatters_and_lurkers_old[chatter]})
-            else:
-                new_dict_combined.update({chatter: 0})
+            new_dict_combined.update({chatter: chatters_and_lurkers_new[chatter]})
 
     return new_dict_combined
 
 
-""" 
+"""
 Method to print out the dictionary list of points
 at the end of a program exit (keyboardInterrupt mainly)
 """
@@ -213,7 +210,7 @@ def exit_handler():
         print(key, " : ", value)
 
 
-""" 
+"""
 This "thing" runs our program essentially.
 """
 
