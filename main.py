@@ -7,7 +7,6 @@ import threading
 from emoji import demojize
 from datetime import datetime
 
-
 """
 Please read the Readme.md before running!
 """
@@ -22,16 +21,30 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 """
 To get a new token, visit https://twitchapps.com/tmi
 """
-server = 'irc.chat.twitch.tv'
-port = 6667
-nickname = '<name of your app>'
-token = '<paste from above>'
-channel = '#<twitch channel name>'
+SERVER = 'irc.chat.twitch.tv'
+PORT = 6667
+NICKNAME = '<name of your app>'
+TOKEN = '<paste from above>'
+CHANNEL = '#<twitch channel name>'
 
-chatters_and_lurkers_dict = {}
+"""
+Register an application by going here: https://dev.twitch.tv/console/apps/create
+paste the client ID and secret down below
+"""
+
+TWITCH_STREAM_API_ENDPOINT_V5 = "https://api.twitch.tv/helix/streams?user_login={}"
+
+Client_ID = '<client id here>'
+Client_Secret = '<client secret here>'
+Accept = 'application/vnd.twitchtv.v5+json'
+
+CHATTERS_AND_LURKERS_DICTIONARY = {}
+IS_CHANNEL_ONLINE = True
 
 """
 Main idea:
+If a channel is ONLINE, only then do these below things:
+
 Get the list of lurkers and chatters every 10 minutes or so
 Let the message parser give points
 Get new list of lurkers and chatters and join (don't delete old people)
@@ -40,28 +53,85 @@ After 2 hours, print the dict with points.
 
 
 def main():
-    global chatters_and_lurkers_dict
-    chatters_and_lurkers_dict = get_chatters_and_lurkers(channel[1:])
+    global IS_CHANNEL_ONLINE
+    IS_CHANNEL_ONLINE = is_stream_live()
+    global CHATTERS_AND_LURKERS_DICTIONARY
+
+    if IS_CHANNEL_ONLINE:
+        CHATTERS_AND_LURKERS_DICTIONARY = get_chatters_and_lurkers(CHANNEL[1:])
+    else:
+        print("Channel offline.")
+        exit_handler()
 
     sock = socket.socket()
-    sock.connect((server, port))
-    sock.send(f"PASS {token}\r\n".encode('utf-8'))
-    sock.send(f"NICK {nickname}\r\n".encode('utf-8'))
-    sock.send(f"JOIN {channel}\r\n".encode('utf-8'))
+    sock.connect((SERVER, PORT))
+    sock.send(f"PASS {TOKEN}\r\n".encode('utf-8'))
+    sock.send(f"NICK {NICKNAME}\r\n".encode('utf-8'))
+    sock.send(f"JOIN {CHANNEL}\r\n".encode('utf-8'))
+
+    if IS_CHANNEL_ONLINE:
+        try:
+            thread1 = threading.Thread(target=connect_to_twitch, args=(sock,))
+            thread1.start()
+
+            thread2 = threading.Thread(target=update_chatters)
+            thread2.start()
+
+            while True:
+                time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            exit_handler()
+            sys.exit("Program finished")
+
+
+"""
+This method is to get an access token. The access token is based
+on your login and is used to check if a channel is online or offline
+"""
+
+
+def get_access_token():
+    body = {
+        'client_id': Client_ID,
+        'client_secret': Client_Secret,
+        "grant_type": 'client_credentials'
+    }
+    r = requests.post('https://id.twitch.tv/oauth2/token', body)
+    keys = r.json()
+
+    return keys['access_token']
+
+
+"""
+This method is to use the access token from above and see if the specified
+channel is live or not. If the channel is not live, we don't want to refresh chatters.
+"""
+
+
+def is_stream_live():
+    access_token = get_access_token()
+    url = TWITCH_STREAM_API_ENDPOINT_V5.format(CHANNEL[1:])
+
+    api_headers = {
+        'Client-ID': Client_ID,
+        'Authorization': 'Bearer ' + access_token
+    }
 
     try:
-        thread1 = threading.Thread(target=connect_to_twitch, args=(sock,))
-        thread1.start()
-
-        thread2 = threading.Thread(target=update_chatters)
-        thread2.start()
-
-        while True:
-            time.sleep(0.1)
-
-    except KeyboardInterrupt:
-        exit_handler()
-        sys.exit("Program finished")
+        req = requests.Session().get(url, headers=api_headers)
+        json_data = req.json()
+        if json_data.get('data'):
+            if json_data.get('data')[0] is not None:
+                if json_data.get('data')[0]['type'] == 'live':  # stream is online
+                    return True
+                else:
+                    return False
+        else:
+            return False
+    except Exception as e:
+        print("Error checking user: ", e)
+        return False
 
 
 """
@@ -94,8 +164,7 @@ Also calls the parses message and award points methods.
 
 
 def connect_to_twitch(sock):
-
-    global chatters_and_lurkers_dict
+    global CHATTERS_AND_LURKERS_DICTIONARY
     counter = 0
     try:
         while True:
@@ -110,7 +179,7 @@ def connect_to_twitch(sock):
                     if counter > 2:
                         now = datetime.now()
                         message = now.strftime("%Y_%m_%d_%H-%M-%S") + demojize(resp)
-                        parse_message(message, chatters_and_lurkers_dict)
+                        parse_message(message, CHATTERS_AND_LURKERS_DICTIONARY)
             except ConnectionResetError:
                 print("Connection reset by Twitch. Re-run program")
             time.sleep(1)
@@ -171,14 +240,17 @@ Calls out the refresh method
 
 
 def update_chatters():
-    while True:
+    global IS_CHANNEL_ONLINE
+    if IS_CHANNEL_ONLINE:
         print("It's been 10 minutes, let's refresh our chatters")
-        new_chatters_and_lurkers_dict = get_chatters_and_lurkers(channel[1:])
-        global chatters_and_lurkers_dict
-        chatters_and_lurkers_dict = refresh_chatters_and_lurkers(chatters_and_lurkers_dict,
-                                                                 new_chatters_and_lurkers_dict)
+        new_chatters_and_lurkers_dictionary = get_chatters_and_lurkers(CHANNEL[1:])
+        global CHATTERS_AND_LURKERS_DICTIONARY
+        CHATTERS_AND_LURKERS_DICTIONARY = refresh_chatters_and_lurkers(CHATTERS_AND_LURKERS_DICTIONARY,
+                                                                       new_chatters_and_lurkers_dictionary)
         # sleep for 10 minutes (in seconds)
         time.sleep(600)
+    else:
+        print("Channel is offline, not refreshing")
 
 
 """
@@ -205,8 +277,8 @@ at the end of a program exit (keyboardInterrupt mainly)
 
 
 def exit_handler():
-    global chatters_and_lurkers_dict
-    for key, value in chatters_and_lurkers_dict.items():
+    global CHATTERS_AND_LURKERS_DICTIONARY
+    for key, value in CHATTERS_AND_LURKERS_DICTIONARY.items():
         print(key, " : ", value)
 
 
