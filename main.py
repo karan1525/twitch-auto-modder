@@ -265,7 +265,11 @@ def refresh_chatters_and_lurkers(chatters_and_lurkers_old, chatters_and_lurkers_
         if chatter in chatters_and_lurkers_old:
             new_dict_combined[chatter] = chatters_and_lurkers_new[chatter] + chatters_and_lurkers_old[chatter]
         else:
-            new_dict_combined.update({chatter: chatters_and_lurkers_new[chatter]})
+            new_dict_combined[chatter] = chatters_and_lurkers_new[chatter]
+
+    for old_chatter in chatters_and_lurkers_old:
+        if old_chatter not in new_dict_combined:
+            new_dict_combined[old_chatter] = chatters_and_lurkers_old[old_chatter]
 
     return new_dict_combined
 
