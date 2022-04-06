@@ -56,6 +56,9 @@ def main():
     global IS_CHANNEL_ONLINE
     IS_CHANNEL_ONLINE = is_stream_live()
     global CHATTERS_AND_LURKERS_DICTIONARY
+    
+    global CHANNEL
+    CHANNEL = CHANNEL.lower()
 
     if IS_CHANNEL_ONLINE:
         CHATTERS_AND_LURKERS_DICTIONARY = get_chatters_and_lurkers(CHANNEL[1:])
